@@ -23,8 +23,8 @@ jobs:
 
       - name: 1. Install toolchain
         run: |
-          mkdir $GITHUB_WORKSPACE/proton-clang
-          cd proton-clang
+          mkdir -p $HOME/proton-clang
+          cd $HOME/proton-clang
           wget https://github.com/kdrag0n/proton-clang/archive/refs/tags/20210522.zip
           unzip 20210522.zip
           cd ..

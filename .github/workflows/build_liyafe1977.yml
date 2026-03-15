@@ -1,5 +1,5 @@
 name: Build Kernel liyafe1977
-run-name: Build Kernel with SukiSU Ultra SUSFS (builtin branch)
+run-name: Build Kernel with SukiSU Ultra SUSFS (pinned commit)
 on:
   workflow_dispatch:
     inputs:
@@ -34,30 +34,22 @@ jobs:
         run: |
           mkdir $GITHUB_WORKSPACE/kernel_workspace
           cd $GITHUB_WORKSPACE/kernel_workspace
-          git clone https://github.com/clcwpwqi/kernel_865_mod -b android15-lineage22-mod --depth=1 android_kernel
+          git clone https://github.com/liyafe1997/kernel_xiaomi_sm8250_mod -b android15-lineage22-mod --depth=1 android_kernel
 
-      - name: 3. Patch build script
+      - name: 3. Patch and build
         run: |
           cd $GITHUB_WORKSPACE/kernel_workspace/android_kernel
-          # Disable KPM (not compatible with 4.19 even on builtin branch)
-          sed -i 's/-e KPM/-d KPM/g' build-action.sh
-          # Use builtin branch instead of susfs-main (the correct non-GKI branch)
-          sed -i 's/bash -s susfs-main/bash -s builtin/g' build-action.sh
-          # Remove KPM patch steps since KPM is disabled
-          sed -i '/wget.*patch_linux/d' build-action.sh
-          sed -i '/chmod.*patch_linux/d' build-action.sh
-          sed -i '/\.\/patch_linux/d' build-action.sh
-          sed -i '/rm Image/d' build-action.sh
-          sed -i '/mv oImage Image/d' build-action.sh
-          echo "=== Patched build-action.sh ==="
-          cat build-action.sh
+          # Disable KPM (not compatible with 4.19)
+          sed -i 's/-e KPM/-d KPM/g' build.sh
+          # Remove KPM patch steps
+          sed -i '/wget.*patch_linux/d' build.sh
+          sed -i '/chmod.*patch_linux/d' build.sh
+          sed -i '/\.\/patch_linux/d' build.sh
+          sed -i '/rm Image/d' build.sh
+          sed -i '/mv oImage Image/d' build.sh
+          bash build.sh ${{ inputs.phonea }} ${{ inputs.roota }}
 
-      - name: 4. Build kernel
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android_kernel
-          bash build-action.sh ${{ inputs.phonea }} ${{ inputs.roota }}
-
-      - name: 5. Upload flashable zip
+      - name: 4. Upload flashable zip
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.phonea }}-${{ inputs.roota }}-kernel-AnyKernel3

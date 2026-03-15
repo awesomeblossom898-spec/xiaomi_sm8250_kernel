@@ -38,6 +38,8 @@ jobs:
           cd android_kernel
           # Disable KPM to fix access_ok() build error on kernel 4.19
           sed -i 's/-e KPM/-d KPM/g' build-action.sh
+          # Fix susfs-main branch not found - use susfs-dev or main instead
+          sed -i 's/bash -s susfs-main/bash -s main/g' build-action.sh
           bash build-action.sh ${{ inputs.phonea }} ${{ inputs.roota}}
 
       - name: 3.上传刷机包

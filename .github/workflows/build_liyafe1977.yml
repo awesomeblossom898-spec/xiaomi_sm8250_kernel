@@ -1,5 +1,5 @@
 name: Build Kernel liyafe1977
-run-name: Build Kernel with SukiSU Ultra KPM SUSFS
+run-name: Build Kernel with SukiSU Ultra SUSFS
 on:
   workflow_dispatch:
     inputs:
@@ -30,19 +30,57 @@ jobs:
           cd ..
           sudo apt install build-essential git curl wget bison flex zip bc cpio libssl-dev ccache python-is-python3
 
-      - name: 2.拉取并编译
+      - name: 2. Clone kernel source
         run: |
           mkdir $GITHUB_WORKSPACE/kernel_workspace
           cd $GITHUB_WORKSPACE/kernel_workspace
           git clone https://github.com/clcwpwqi/kernel_865_mod -b android15-lineage22-mod --depth=1 android_kernel
-          cd android_kernel
-          # Disable KPM to fix access_ok() build error on kernel 4.19
+
+      - name: 3. Patch build script for 4.19 compat
+        run: |
+          cd $GITHUB_WORKSPACE/kernel_workspace/android_kernel
+          # Disable KPM (access_ok 2-arg vs 3-arg incompatibility on 4.19)
           sed -i 's/-e KPM/-d KPM/g' build-action.sh
-          # Fix susfs-main branch not found - use susfs-dev or main instead
+          # Fix susfs-main branch not found
           sed -i 's/bash -s susfs-main/bash -s main/g' build-action.sh
+          # Remove the KPM patch step (patch_linux) since KPM is disabled
+          sed -i '/wget.*patch_linux/d' build-action.sh
+          sed -i '/chmod.*patch_linux/d' build-action.sh
+          sed -i '/\.\/patch_linux/d' build-action.sh
+          sed -i '/rm Image/d' build-action.sh
+          sed -i '/mv oImage Image/d' build-action.sh
+
+      - name: 4. Run KernelSU setup separately
+        run: |
+          cd $GITHUB_WORKSPACE/kernel_workspace/android_kernel
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
+
+      - name: 5. Patch KernelSU source for 4.19 compat
+        run: |
+          cd $GITHUB_WORKSPACE/kernel_workspace/android_kernel
+          # Fix MODULE_IMPORT_NS not available on 4.19 (introduced in 5.4)
+          if [ -f "drivers/kernelsu/ksu.c" ]; then
+            sed -i '/MODULE_IMPORT_NS/d' drivers/kernelsu/ksu.c
+            echo "Removed MODULE_IMPORT_NS lines from ksu.c"
+          fi
+          # Remove KPM directory entirely to avoid any leftover references
+          rm -rf drivers/kernelsu/kpm/
+          # Disable KPM in Kconfig if present
+          if [ -f "drivers/kernelsu/Kconfig" ]; then
+            sed -i 's/default y.*# KPM/default n # KPM disabled for 4.19/g' drivers/kernelsu/Kconfig
+          fi
+          if [ -f "drivers/kernelsu/Makefile" ]; then
+            sed -i '/kpm/d' drivers/kernelsu/Makefile
+          fi
+
+      - name: 6. Build kernel
+        run: |
+          cd $GITHUB_WORKSPACE/kernel_workspace/android_kernel
+          # Skip the KernelSU setup in build-action.sh since we already did it
+          sed -i 's/curl -LSs.*setup.sh.*$/echo "KernelSU already set up"/g' build-action.sh
           bash build-action.sh ${{ inputs.phonea }} ${{ inputs.roota}}
 
-      - name: 3.上传刷机包
+      - name: 7. Upload flashable zip
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.phonea }}-${{ inputs.roota }}-kernel-AnyKernel3
